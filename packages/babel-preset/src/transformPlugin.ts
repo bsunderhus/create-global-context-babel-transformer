@@ -81,11 +81,11 @@ function createGlobalContextCallExpression(options: {
  * Checks if import statement import createContext().
  */
 function hasReactImport(path: NodePath<babel.types.ImportDeclaration>): boolean {
-  return path.node.source.value === 'react';
+  return path.node.source.value === REACT_PACKAGE;
 }
 
 function hasContextSelectorImport(path: NodePath<babel.types.ImportDeclaration>): boolean {
-  return path.node.source.value === '@fluentui/react-context-selector';
+  return path.node.source.value === CONTEXT_SELECTOR_PACKAGE;
 }
 
 export const transformPlugin = declare<{}, PluginObj<BabelPluginState>>((api, options) => {
@@ -163,25 +163,27 @@ export const transformPlugin = declare<{}, PluginObj<BabelPluginState>>((api, op
         },
       },
 
+      /**
+       * Finds imports of `react` or `@fluentui/react-context-selector`.
+       * If `createContext` is explicitly imported, stores its imported name in state
+       * 
+       * @example import { createContext as createMyContext } from 'react';
+       */
       // eslint-disable-next-line @typescript-eslint/naming-convention
       ImportDeclaration(path, state) {
-        let native = false;
-        if (hasReactImport(path)) {
-          native = true;
-          state.importDeclarationPaths!.push(path);
+        if (!hasReactImport(path) && !hasContextSelectorImport(path)) {
+          return
         }
 
-        if (hasContextSelectorImport(path)) {
-          native = false;
-          state.importDeclarationPaths!.push(path);
-        }
+        let native = hasReactImport(path);
+        state.importDeclarationPaths!.push(path);
 
         for (const importSpecifier of path.node.specifiers) {
           if (
             types.isImportSpecifier(importSpecifier) &&
             types.isIdentifier(importSpecifier.imported) &&
-            types.isIdentifier(importSpecifier.local) &&
-            !importSpecifier.local.name.startsWith('__')
+            types.isIdentifier(importSpecifier.local) && 
+            importSpecifier.imported.name === CREATE_CONTEXT_CALL
           ) {
             const localName = importSpecifier.local.name;
             if (native) {
@@ -192,13 +194,13 @@ export const transformPlugin = declare<{}, PluginObj<BabelPluginState>>((api, op
           }
         }
       },
+      /**
+       * Handles case when `createContext()` is `CallExpression`.
+       *
+       * @example createContext({})
+       */
       // eslint-disable-next-line @typescript-eslint/naming-convention
       CallExpression(path, state) {
-        /**
-         * Handles case when `createContext()` is `CallExpression`.
-         *
-         * @example createContext({})
-         */
         if (state.importDeclarationPaths!.length === 0) {
           return;
         }
@@ -219,14 +221,14 @@ export const transformPlugin = declare<{}, PluginObj<BabelPluginState>>((api, op
         }
       },
 
+      /**
+       * Handles case when `createContext()` is inside `MemberExpression`.
+       * Assumes that context selector is not used this way
+       *
+       * @example module.createContext({})
+       */
       // eslint-disable-next-line @typescript-eslint/naming-convention
       MemberExpression(expressionPath, state) {
-        /**
-         * Handles case when `createContext()` is inside `MemberExpression`.
-         * Assumes that context selector is not used this way
-         *
-         * @example module.createContext({})
-         */
 
         const objectPath = expressionPath.get('object');
         const propertyPath = expressionPath.get('property');
