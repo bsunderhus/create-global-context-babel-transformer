@@ -25,7 +25,14 @@ const config = {
     rules: [
       {
         test: /\.(ts|tsx)$/i,
-        use: ['@global-context/webpack-loader'],
+        use: {
+          loader: 'babel-loader',
+          options: {
+            presets: [
+              ['@global-context/babel-preset']
+            ]
+          }
+        },
         include: [/src\/fake_node_modules\/context-.+/],
       },
       {
