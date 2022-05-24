@@ -26,7 +26,7 @@ const config = {
       {
         test: /\.(ts|tsx)$/i,
         use: ['@global-context/webpack-loader'],
-        include: [/src\/fake_node_modules\/context-.+/]
+        include: [/src\/fake_node_modules\/context-.+/],
       },
       {
         test: /\.(ts|tsx)$/i,

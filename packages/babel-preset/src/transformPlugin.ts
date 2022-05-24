@@ -7,7 +7,15 @@ import { validateOptions } from './validateOptions';
 import * as findUp from 'find-up';
 import { dirname, relative } from 'path';
 import { readFileSync } from 'fs';
-import { CONTEXT_SELECTOR_PACKAGE, CREATE_CONTEXT_CALL, GLOBAL_CONTEXT_CALL, GLOBAL_CONTEXT_PACKAGE, GLOBAL_CONTEXT_SELECTOR_CALL, GLOBAL_CONTEXT_SELECTOR_PACKAGE, REACT_PACKAGE } from './constants';
+import {
+  CONTEXT_SELECTOR_PACKAGE,
+  CREATE_CONTEXT_CALL,
+  GLOBAL_CONTEXT_CALL,
+  GLOBAL_CONTEXT_PACKAGE,
+  GLOBAL_CONTEXT_SELECTOR_CALL,
+  GLOBAL_CONTEXT_SELECTOR_PACKAGE,
+  REACT_PACKAGE,
+} from './constants';
 
 type BabelPluginState = PluginPass & {
   importDeclarationPaths?: NodePath<t.ImportDeclaration>[];
@@ -33,7 +41,7 @@ function isCreateContextCallee(
     return false;
   }
 
-  if (state.nativeLocalName &&  path.referencesImport(REACT_PACKAGE, CREATE_CONTEXT_CALL)) {
+  if (state.nativeLocalName && path.referencesImport(REACT_PACKAGE, CREATE_CONTEXT_CALL)) {
     return true;
   }
 
@@ -52,13 +60,13 @@ function createGlobalContextImportDeclaration(packageName: string, functionName:
 }
 
 function createGlobalContextCallExpression(options: {
-  expressionPath: NodePath<t.CallExpression>,
-  packageJson: PackageJSON,
-  packageJsonPath: string,
-  filePath: string,
+  expressionPath: NodePath<t.CallExpression>;
+  packageJson: PackageJSON;
+  packageJsonPath: string;
+  filePath: string;
   functionName: string;
 }) {
-  const { expressionPath, packageJson, packageJsonPath, filePath, functionName} = options;
+  const { expressionPath, packageJson, packageJsonPath, filePath, functionName } = options;
 
   const args = expressionPath.get('arguments').map(arg => arg.node);
   if (!expressionPath.parentPath.isVariableDeclarator()) {
@@ -80,15 +88,11 @@ function createGlobalContextCallExpression(options: {
 /**
  * Checks if import statement import createContext().
  */
-function hasReactImport(
-  path: NodePath<babel.types.ImportDeclaration>,
-): boolean {
+function hasReactImport(path: NodePath<babel.types.ImportDeclaration>): boolean {
   return path.node.source.value === 'react';
 }
 
-function hasContextSelectorImport(
-  path: NodePath<babel.types.ImportDeclaration>,
-): boolean {
+function hasContextSelectorImport(path: NodePath<babel.types.ImportDeclaration>): boolean {
   return path.node.source.value === '@fluentui/react-context-selector';
 }
 
@@ -96,7 +100,10 @@ export const transformPlugin = declare<Partial<BabelPluginOptions>, PluginObj<Ba
   api.assertVersion(7);
 
   const pluginOptions: Required<BabelPluginOptions> = {
-    modules: [{ moduleSource: 'react', importName: 'createContext' }, { moduleSource: '@fluentui/react-context-selector', importName: 'createContext' }],
+    modules: [
+      { moduleSource: 'react', importName: 'createContext' },
+      { moduleSource: '@fluentui/react-context-selector', importName: 'createContext' },
+    ],
     ...options,
   };
 
@@ -129,12 +136,18 @@ export const transformPlugin = declare<Partial<BabelPluginOptions>, PluginObj<Ba
 
           if (state.importDeclarationPaths.some(hasReactImport)) {
             // Adds import for global context
-            path.unshiftContainer('body', createGlobalContextImportDeclaration(GLOBAL_CONTEXT_PACKAGE, GLOBAL_CONTEXT_CALL));
+            path.unshiftContainer(
+              'body',
+              createGlobalContextImportDeclaration(GLOBAL_CONTEXT_PACKAGE, GLOBAL_CONTEXT_CALL),
+            );
           }
 
           if (state.importDeclarationPaths.some(hasContextSelectorImport)) {
             // Adds import for global context
-            path.unshiftContainer('body', createGlobalContextImportDeclaration(GLOBAL_CONTEXT_SELECTOR_PACKAGE, GLOBAL_CONTEXT_SELECTOR_CALL));
+            path.unshiftContainer(
+              'body',
+              createGlobalContextImportDeclaration(GLOBAL_CONTEXT_SELECTOR_PACKAGE, GLOBAL_CONTEXT_SELECTOR_CALL),
+            );
           }
 
           const packageJson: PackageJSON = JSON.parse(readFileSync(packageJsonPath).toString());
@@ -142,7 +155,13 @@ export const transformPlugin = declare<Partial<BabelPluginOptions>, PluginObj<Ba
           if (state.contextSelectorExpressionPaths) {
             for (const expressionPath of state.contextSelectorExpressionPaths) {
               expressionPath.replaceWith(
-                createGlobalContextCallExpression({ expressionPath, packageJson, packageJsonPath, filePath: state.filename, functionName: GLOBAL_CONTEXT_SELECTOR_CALL }),
+                createGlobalContextCallExpression({
+                  expressionPath,
+                  packageJson,
+                  packageJsonPath,
+                  filePath: state.filename,
+                  functionName: GLOBAL_CONTEXT_SELECTOR_CALL,
+                }),
               );
             }
           }
@@ -150,12 +169,16 @@ export const transformPlugin = declare<Partial<BabelPluginOptions>, PluginObj<Ba
           if (state.nativeExpressionPaths) {
             for (const expressionPath of state.nativeExpressionPaths) {
               expressionPath.replaceWith(
-                createGlobalContextCallExpression({ expressionPath, packageJson, packageJsonPath, filePath: state.filename, functionName: GLOBAL_CONTEXT_CALL }),
+                createGlobalContextCallExpression({
+                  expressionPath,
+                  packageJson,
+                  packageJsonPath,
+                  filePath: state.filename,
+                  functionName: GLOBAL_CONTEXT_CALL,
+                }),
               );
             }
           }
-
-
         },
       },
 
@@ -172,20 +195,20 @@ export const transformPlugin = declare<Partial<BabelPluginOptions>, PluginObj<Ba
           state.importDeclarationPaths!.push(path);
         }
 
-        for(const importSpecifier of path.node.specifiers) {
+        for (const importSpecifier of path.node.specifiers) {
           if (
-            types.isImportSpecifier(importSpecifier) && 
-            types.isIdentifier(importSpecifier.imported) && 
+            types.isImportSpecifier(importSpecifier) &&
+            types.isIdentifier(importSpecifier.imported) &&
             types.isIdentifier(importSpecifier.local) &&
-            !importSpecifier.local.name.startsWith('__')) {
+            !importSpecifier.local.name.startsWith('__')
+          ) {
             const localName = importSpecifier.local.name;
             if (native) {
               state.nativeLocalName = localName;
             } else {
-              state.contextSelectorLocalName= localName;
+              state.contextSelectorLocalName = localName;
             }
           }
-
         }
       },
       // eslint-disable-next-line @typescript-eslint/naming-convention

@@ -3,7 +3,7 @@ import { render } from 'react-dom';
 import { ProviderContext as ProviderContextV1 } from './fake_node_modules/context-v1.0.0';
 import { ProviderContext as ProviderContextV11 } from './fake_node_modules/context-v1.1.0';
 import { ProviderContext as ProviderContextV2 } from './fake_node_modules/context-v2.0.0';
-import { ProviderContext as SpecialContext } from './fake_node_modules/ignored-context'
+import { ProviderContext as SpecialContext } from './fake_node_modules/ignored-context';
 
 const root = document.getElementById('root');
 
@@ -25,13 +25,12 @@ function Example() {
       <pre>ignored: {JSON.stringify(ignoredContext)}</pre>
     </>
   );
-
 }
 
 function App() {
   return (
     <ProviderContextV1.Provider value={{ foo: 'red', bar: 'blue' }}>
-      <ProviderContextV2.Provider value={{bar: 'white', baz: 'black'}}>
+      <ProviderContextV2.Provider value={{ bar: 'white', baz: 'black' }}>
         <Example />
       </ProviderContextV2.Provider>
     </ProviderContextV1.Provider>

@@ -47,5 +47,3 @@ export const createContext = <T>(defaultValue: T, name: string, packageName: str
 
   return globalObject[sym] as React.Context<T>;
 };
-
-
