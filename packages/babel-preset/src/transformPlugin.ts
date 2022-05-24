@@ -33,21 +33,15 @@ interface PackageJSON {
  */
 function isCreateContextCallee(
   path: NodePath<t.Expression | t.V8IntrinsicIdentifier>,
-  state: Pick<BabelPluginState, 'nativeLocalName' | 'contextSelectorLocalName'>,
 ): path is NodePath<t.Identifier> {
   if (!path.isIdentifier) {
     return false;
   }
 
-  if (state.nativeLocalName && path.referencesImport(REACT_PACKAGE, CREATE_CONTEXT_CALL)) {
-    return true;
-  }
-
-  if (state.contextSelectorLocalName && path.referencesImport(CONTEXT_SELECTOR_PACKAGE, CREATE_CONTEXT_CALL)) {
-    return true;
-  }
-
-  return false;
+  return (
+    path.referencesImport(REACT_PACKAGE, CREATE_CONTEXT_CALL) ||
+    path.referencesImport(CONTEXT_SELECTOR_PACKAGE, CREATE_CONTEXT_CALL)
+  );
 }
 
 function createGlobalContextImportDeclaration(packageName: string, functionName: string) {
@@ -119,6 +113,7 @@ export const transformPlugin = declare<{}, PluginObj<BabelPluginState>>((api, op
           ) {
             return;
           }
+
           const packageJsonPath = findUp.sync('package.json', { cwd: dirname(state.filename) });
           if (packageJsonPath === undefined) {
             return;
@@ -210,7 +205,7 @@ export const transformPlugin = declare<{}, PluginObj<BabelPluginState>>((api, op
 
         const calleePath = path.get('callee');
 
-        if (!isCreateContextCallee(calleePath, state)) {
+        if (!isCreateContextCallee(calleePath)) {
           return;
         }
 
