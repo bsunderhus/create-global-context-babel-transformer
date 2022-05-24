@@ -28,10 +28,8 @@ const config = {
         use: {
           loader: 'babel-loader',
           options: {
-            presets: [
-              ['@global-context/babel-preset']
-            ]
-          }
+            presets: [['@global-context/babel-preset']],
+          },
         },
         include: [/src\/fake_node_modules\/context-.+/],
       },

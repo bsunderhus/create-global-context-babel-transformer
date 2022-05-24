@@ -111,14 +111,16 @@ export const transformPlugin = declare<{}, PluginObj<BabelPluginState>>((api, op
         enter() {},
 
         exit(path, state) {
-          if (state.filename === undefined) {
+          if (
+            state.filename === undefined ||
+            !state.importDeclarationPaths?.length ||
+            !state.nativeExpressionPaths ||
+            !state.contextSelectorExpressionPaths
+          ) {
             return;
           }
           const packageJsonPath = findUp.sync('package.json', { cwd: dirname(state.filename) });
           if (packageJsonPath === undefined) {
-            return;
-          }
-          if (!state.importDeclarationPaths?.length) {
             return;
           }
 
@@ -140,32 +142,28 @@ export const transformPlugin = declare<{}, PluginObj<BabelPluginState>>((api, op
 
           const packageJson: PackageJSON = JSON.parse(readFileSync(packageJsonPath).toString());
           // substitutes expressions of react createContext to global context
-          if (state.contextSelectorExpressionPaths) {
-            for (const expressionPath of state.contextSelectorExpressionPaths) {
-              expressionPath.replaceWith(
-                createGlobalContextCallExpression({
-                  expressionPath,
-                  packageJson,
-                  packageJsonPath,
-                  filePath: state.filename,
-                  functionName: GLOBAL_CONTEXT_SELECTOR_CALL,
-                }),
-              );
-            }
+          for (const expressionPath of state.contextSelectorExpressionPaths) {
+            expressionPath.replaceWith(
+              createGlobalContextCallExpression({
+                expressionPath,
+                packageJson,
+                packageJsonPath,
+                filePath: state.filename,
+                functionName: GLOBAL_CONTEXT_SELECTOR_CALL,
+              }),
+            );
           }
 
-          if (state.nativeExpressionPaths) {
-            for (const expressionPath of state.nativeExpressionPaths) {
-              expressionPath.replaceWith(
-                createGlobalContextCallExpression({
-                  expressionPath,
-                  packageJson,
-                  packageJsonPath,
-                  filePath: state.filename,
-                  functionName: GLOBAL_CONTEXT_CALL,
-                }),
-              );
-            }
+          for (const expressionPath of state.nativeExpressionPaths) {
+            expressionPath.replaceWith(
+              createGlobalContextCallExpression({
+                expressionPath,
+                packageJson,
+                packageJsonPath,
+                filePath: state.filename,
+                functionName: GLOBAL_CONTEXT_CALL,
+              }),
+            );
           }
         },
       },
