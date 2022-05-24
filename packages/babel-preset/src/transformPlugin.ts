@@ -2,8 +2,6 @@ import type { NodePath, PluginObj, PluginPass, types as t } from '@babel/core';
 import { types } from '@babel/core';
 import { declare } from '@babel/helper-plugin-utils';
 import hash from '@emotion/hash';
-import { BabelPluginOptions } from './types';
-import { validateOptions } from './validateOptions';
 import * as findUp from 'find-up';
 import { dirname, relative } from 'path';
 import { readFileSync } from 'fs';
@@ -96,18 +94,8 @@ function hasContextSelectorImport(path: NodePath<babel.types.ImportDeclaration>)
   return path.node.source.value === '@fluentui/react-context-selector';
 }
 
-export const transformPlugin = declare<Partial<BabelPluginOptions>, PluginObj<BabelPluginState>>((api, options) => {
+export const transformPlugin = declare<{}, PluginObj<BabelPluginState>>((api, options) => {
   api.assertVersion(7);
-
-  const pluginOptions: Required<BabelPluginOptions> = {
-    modules: [
-      { moduleSource: 'react', importName: 'createContext' },
-      { moduleSource: '@fluentui/react-context-selector', importName: 'createContext' },
-    ],
-    ...options,
-  };
-
-  validateOptions(pluginOptions);
 
   return {
     name: 'global-context',
