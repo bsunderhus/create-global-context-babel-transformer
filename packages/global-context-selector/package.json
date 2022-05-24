@@ -1,0 +1,16 @@
+{
+  "name": "@global-context/react-context-selector",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "scripts": {
+    "build": "tsc -b tsconfig.json"
+  },
+  "dependencies": {
+    "@fluentui/react-context-selector": "^9.0.0-rc.8",
+    "semver": "^7.3.5"
+  },
+  "peerDependencies": {
+    "react": "^17.0.2"
+  }
+}

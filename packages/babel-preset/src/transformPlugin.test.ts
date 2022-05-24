@@ -29,7 +29,11 @@ pluginTester({
     }),
 
   fixtures: fixturesDir,
-  tests: [],
+  // tests: [{
+  //   only: true,
+  //   fixture: path.resolve(fixturesDir, 'native-and-context-selector/code.ts'),
+  //   outputFixture: path.resolve(fixturesDir, 'native-and-context-selector/output.ts'),
+  // }],
 
   plugin: transformPlugin,
   pluginName: '@griffel/babel-plugin-transform',

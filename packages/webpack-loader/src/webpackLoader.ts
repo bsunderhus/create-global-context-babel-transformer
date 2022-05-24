@@ -13,7 +13,6 @@ export function shouldTransformSourceCode(
   sourceCode: string,
   modules: WebpackLoaderOptions['modules'] | undefined,
 ): boolean {
-  // Fallback to "makeStyles" if options were not provided
   const imports = modules ? modules.map(module => module.importName).join('|') : 'createContext';
 
   return new RegExp(`\\b(${imports})`).test(sourceCode);

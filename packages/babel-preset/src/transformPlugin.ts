@@ -7,11 +7,14 @@ import { validateOptions } from './validateOptions';
 import * as findUp from 'find-up';
 import { dirname, relative } from 'path';
 import { readFileSync } from 'fs';
+import { CONTEXT_SELECTOR_PACKAGE, CREATE_CONTEXT_CALL, GLOBAL_CONTEXT_CALL, GLOBAL_CONTEXT_PACKAGE, GLOBAL_CONTEXT_SELECTOR_CALL, GLOBAL_CONTEXT_SELECTOR_PACKAGE, REACT_PACKAGE } from './constants';
 
 type BabelPluginState = PluginPass & {
   importDeclarationPaths?: NodePath<t.ImportDeclaration>[];
-  requireDeclarationPath?: NodePath<t.VariableDeclarator>;
-  expressionPaths?: NodePath<t.CallExpression>[];
+  nativeExpressionPaths?: NodePath<t.CallExpression>[];
+  contextSelectorExpressionPaths?: NodePath<t.CallExpression>[];
+  nativeLocalName?: string;
+  contextSelectorLocalName?: string;
 };
 
 interface PackageJSON {
@@ -20,32 +23,43 @@ interface PackageJSON {
 }
 
 /**
- * Checks that passed callee imports makesStyles().
+ * Checks that passed callee imports react context or context selector
  */
 function isCreateContextCallee(
   path: NodePath<t.Expression | t.V8IntrinsicIdentifier>,
-  modules: NonNullable<BabelPluginOptions['modules']>,
+  state: Pick<BabelPluginState, 'nativeLocalName' | 'contextSelectorLocalName'>,
 ): path is NodePath<t.Identifier> {
-  if (path.isIdentifier()) {
-    return Boolean(modules.find(module => path.referencesImport(module.moduleSource, module.importName)));
+  if (!path.isIdentifier) {
+    return false;
+  }
+
+  if (state.nativeLocalName &&  path.referencesImport(REACT_PACKAGE, CREATE_CONTEXT_CALL)) {
+    return true;
+  }
+
+  if (state.contextSelectorLocalName && path.referencesImport(CONTEXT_SELECTOR_PACKAGE, CREATE_CONTEXT_CALL)) {
+    return true;
   }
 
   return false;
 }
 
-function createGlobalContextImportDeclaration() {
+function createGlobalContextImportDeclaration(packageName: string, functionName: string) {
   return types.importDeclaration(
-    [types.importSpecifier(types.identifier('__createGlobalContext'), types.identifier('createContext'))],
-    types.stringLiteral('@global-context/react'),
+    [types.importSpecifier(types.identifier(functionName), types.identifier(CREATE_CONTEXT_CALL))],
+    types.stringLiteral(packageName),
   );
 }
 
-function createGlobalContextCallExpression(
+function createGlobalContextCallExpression(options: {
   expressionPath: NodePath<t.CallExpression>,
   packageJson: PackageJSON,
   packageJsonPath: string,
   filePath: string,
-) {
+  functionName: string;
+}) {
+  const { expressionPath, packageJson, packageJsonPath, filePath, functionName} = options;
+
   const args = expressionPath.get('arguments').map(arg => arg.node);
   if (!expressionPath.parentPath.isVariableDeclarator()) {
     return expressionPath.node;
@@ -55,7 +69,7 @@ function createGlobalContextCallExpression(
   // can be installed under different paths in node_modules if they are duplicated
   const relativePath = relative(packageJsonPath, filePath);
   const id = expressionPath.parentPath.get('id') as NodePath<babel.types.Identifier>;
-  return types.callExpression(types.identifier('__createGlobalContext'), [
+  return types.callExpression(types.identifier(functionName), [
     ...args,
     types.stringLiteral(hash(`${relativePath}@${id.node.name}`)),
     types.stringLiteral(packageJson.name),
@@ -68,17 +82,21 @@ function createGlobalContextCallExpression(
  */
 function hasReactImport(
   path: NodePath<babel.types.ImportDeclaration>,
-  modules: NonNullable<BabelPluginOptions['modules']>,
 ): boolean {
-  return Boolean(modules.find(module => path.node.source.value === module.moduleSource));
+  return path.node.source.value === 'react';
+}
+
+function hasContextSelectorImport(
+  path: NodePath<babel.types.ImportDeclaration>,
+): boolean {
+  return path.node.source.value === '@fluentui/react-context-selector';
 }
 
 export const transformPlugin = declare<Partial<BabelPluginOptions>, PluginObj<BabelPluginState>>((api, options) => {
   api.assertVersion(7);
 
   const pluginOptions: Required<BabelPluginOptions> = {
-    babelOptions: {},
-    modules: [{ moduleSource: 'react', importName: 'createContext' }],
+    modules: [{ moduleSource: 'react', importName: 'createContext' }, { moduleSource: '@fluentui/react-context-selector', importName: 'createContext' }],
     ...options,
   };
 
@@ -89,7 +107,8 @@ export const transformPlugin = declare<Partial<BabelPluginOptions>, PluginObj<Ba
 
     pre() {
       this.importDeclarationPaths = [];
-      this.expressionPaths = [];
+      this.nativeExpressionPaths = [];
+      this.contextSelectorExpressionPaths = [];
     },
 
     visitor: {
@@ -100,32 +119,73 @@ export const transformPlugin = declare<Partial<BabelPluginOptions>, PluginObj<Ba
           if (state.filename === undefined) {
             return;
           }
-          const packageJSONPath = findUp.sync('package.json', { cwd: dirname(state.filename) });
-          if (packageJSONPath === undefined) {
+          const packageJsonPath = findUp.sync('package.json', { cwd: dirname(state.filename) });
+          if (packageJsonPath === undefined) {
             return;
           }
-          if (state.importDeclarationPaths!.length === 0 && !state.requireDeclarationPath) {
+          if (!state.importDeclarationPaths?.length) {
             return;
           }
-          const packageJSON: PackageJSON = JSON.parse(readFileSync(packageJSONPath).toString());
 
-          // Adds import for global context
-          path.unshiftContainer('body', createGlobalContextImportDeclaration());
+          if (state.importDeclarationPaths.some(hasReactImport)) {
+            // Adds import for global context
+            path.unshiftContainer('body', createGlobalContextImportDeclaration(GLOBAL_CONTEXT_PACKAGE, GLOBAL_CONTEXT_CALL));
+          }
+
+          if (state.importDeclarationPaths.some(hasContextSelectorImport)) {
+            // Adds import for global context
+            path.unshiftContainer('body', createGlobalContextImportDeclaration(GLOBAL_CONTEXT_SELECTOR_PACKAGE, GLOBAL_CONTEXT_SELECTOR_CALL));
+          }
+
+          const packageJson: PackageJSON = JSON.parse(readFileSync(packageJsonPath).toString());
           // substitutes expressions of react createContext to global context
-          if (state.expressionPaths) {
-            for (const expressionPath of state.expressionPaths) {
+          if (state.contextSelectorExpressionPaths) {
+            for (const expressionPath of state.contextSelectorExpressionPaths) {
               expressionPath.replaceWith(
-                createGlobalContextCallExpression(expressionPath, packageJSON, packageJSONPath, state.filename),
+                createGlobalContextCallExpression({ expressionPath, packageJson, packageJsonPath, filePath: state.filename, functionName: GLOBAL_CONTEXT_SELECTOR_CALL }),
               );
             }
           }
+
+          if (state.nativeExpressionPaths) {
+            for (const expressionPath of state.nativeExpressionPaths) {
+              expressionPath.replaceWith(
+                createGlobalContextCallExpression({ expressionPath, packageJson, packageJsonPath, filePath: state.filename, functionName: GLOBAL_CONTEXT_CALL }),
+              );
+            }
+          }
+
+
         },
       },
 
       // eslint-disable-next-line @typescript-eslint/naming-convention
       ImportDeclaration(path, state) {
-        if (hasReactImport(path, pluginOptions.modules)) {
+        let native = false;
+        if (hasReactImport(path)) {
+          native = true;
           state.importDeclarationPaths!.push(path);
+        }
+
+        if (hasContextSelectorImport(path)) {
+          native = false;
+          state.importDeclarationPaths!.push(path);
+        }
+
+        for(const importSpecifier of path.node.specifiers) {
+          if (
+            types.isImportSpecifier(importSpecifier) && 
+            types.isIdentifier(importSpecifier.imported) && 
+            types.isIdentifier(importSpecifier.local) &&
+            !importSpecifier.local.name.startsWith('__')) {
+            const localName = importSpecifier.local.name;
+            if (native) {
+              state.nativeLocalName = localName;
+            } else {
+              state.contextSelectorLocalName= localName;
+            }
+          }
+
         }
       },
       // eslint-disable-next-line @typescript-eslint/naming-convention
@@ -141,17 +201,25 @@ export const transformPlugin = declare<Partial<BabelPluginOptions>, PluginObj<Ba
 
         const calleePath = path.get('callee');
 
-        if (!isCreateContextCallee(calleePath, pluginOptions.modules)) {
+        if (!isCreateContextCallee(calleePath, state)) {
           return;
         }
 
-        state.expressionPaths!.push(path);
+        if (types.isCallExpression(path.node) && types.isIdentifier(path.node.callee)) {
+          if (path.node.callee.name === state.nativeLocalName) {
+            state.nativeExpressionPaths!.push(path);
+          }
+          if (path.node.callee.name === state.contextSelectorLocalName) {
+            state.contextSelectorExpressionPaths!.push(path);
+          }
+        }
       },
 
       // eslint-disable-next-line @typescript-eslint/naming-convention
       MemberExpression(expressionPath, state) {
         /**
          * Handles case when `createContext()` is inside `MemberExpression`.
+         * Assumes that context selector is not used this way
          *
          * @example module.createContext({})
          */
@@ -171,7 +239,7 @@ export const transformPlugin = declare<Partial<BabelPluginOptions>, PluginObj<Ba
         if (!parentPath.isCallExpression()) {
           return;
         }
-        state.expressionPaths?.push(parentPath);
+        state.nativeExpressionPaths?.push(parentPath);
       },
     },
   };
