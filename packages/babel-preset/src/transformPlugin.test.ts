@@ -36,5 +36,5 @@ pluginTester({
   // }],
 
   plugin: transformPlugin,
-  pluginName: '@griffel/babel-plugin-transform',
+  pluginName: '@global-context/babel-transform',
 });
