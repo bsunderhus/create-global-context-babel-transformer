@@ -31,9 +31,7 @@ interface PackageJSON {
 /**
  * Checks that passed callee imports react context or context selector
  */
-function isCreateContextCallee(
-  path: NodePath<t.Expression | t.V8IntrinsicIdentifier>,
-): path is NodePath<t.Identifier> {
+function isCreateContextCallee(path: NodePath<t.Expression | t.V8IntrinsicIdentifier>): path is NodePath<t.Identifier> {
   if (!path.isIdentifier) {
     return false;
   }
@@ -44,6 +42,14 @@ function isCreateContextCallee(
   );
 }
 
+/**
+ *
+ * @param packageName - name of the package to import
+ * @param functionName - name of the createContext function
+ * @returns a new import expression for global context
+ *
+ * @example import { createContext as __createGlobalContext } from '@global-context/react'
+ */
 function createGlobalContextImportDeclaration(packageName: string, functionName: string) {
   return types.importDeclaration(
     [types.importSpecifier(types.identifier(functionName), types.identifier(CREATE_CONTEXT_CALL))],
@@ -51,6 +57,11 @@ function createGlobalContextImportDeclaration(packageName: string, functionName:
   );
 }
 
+/**
+ * @returns - An expression that creates a global context
+ *
+ * @example const MyContext = __createGlobalContext();
+ */
 function createGlobalContextCallExpression(options: {
   expressionPath: NodePath<t.CallExpression>;
   packageJson: PackageJSON;
@@ -78,17 +89,20 @@ function createGlobalContextCallExpression(options: {
 }
 
 /**
- * Checks if import statement import createContext().
+ * Checks if import statement import createContext() from React
  */
 function hasReactImport(path: NodePath<babel.types.ImportDeclaration>): boolean {
   return path.node.source.value === REACT_PACKAGE;
 }
 
+/**
+ * Checks if import statement import createContext() from @fluentui/react-context-selector
+ */
 function hasContextSelectorImport(path: NodePath<babel.types.ImportDeclaration>): boolean {
   return path.node.source.value === CONTEXT_SELECTOR_PACKAGE;
 }
 
-export const transformPlugin = declare<{}, PluginObj<BabelPluginState>>((api, options) => {
+export const transformPlugin = declare<{}, PluginObj<BabelPluginState>>(api => {
   api.assertVersion(7);
 
   return {
@@ -166,13 +180,13 @@ export const transformPlugin = declare<{}, PluginObj<BabelPluginState>>((api, op
       /**
        * Finds imports of `react` or `@fluentui/react-context-selector`.
        * If `createContext` is explicitly imported, stores its imported name in state
-       * 
+       *
        * @example import { createContext as createMyContext } from 'react';
        */
       // eslint-disable-next-line @typescript-eslint/naming-convention
       ImportDeclaration(path, state) {
         if (!hasReactImport(path) && !hasContextSelectorImport(path)) {
-          return
+          return;
         }
 
         let native = hasReactImport(path);
@@ -182,7 +196,7 @@ export const transformPlugin = declare<{}, PluginObj<BabelPluginState>>((api, op
           if (
             types.isImportSpecifier(importSpecifier) &&
             types.isIdentifier(importSpecifier.imported) &&
-            types.isIdentifier(importSpecifier.local) && 
+            types.isIdentifier(importSpecifier.local) &&
             importSpecifier.imported.name === CREATE_CONTEXT_CALL
           ) {
             const localName = importSpecifier.local.name;
@@ -229,7 +243,6 @@ export const transformPlugin = declare<{}, PluginObj<BabelPluginState>>((api, op
        */
       // eslint-disable-next-line @typescript-eslint/naming-convention
       MemberExpression(expressionPath, state) {
-
         const objectPath = expressionPath.get('object');
         const propertyPath = expressionPath.get('property');
 
